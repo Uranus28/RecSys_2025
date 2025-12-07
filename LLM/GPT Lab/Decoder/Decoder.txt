@@ -1,0 +1,27 @@
+class Decoder(nn.Module):
+  def __init__(self, num_heads: int, emb_size: int,head_size: int, max_seq_len: int, dropout = 0.1) -> None:
+    '''
+    num_heads (int) - Количество голов
+    emb_size (тип int) - размерность эмбедингов (позиционных токнеов)
+    head_size (int) - размерность W-матриц (W_k, W_q, W_v)
+    max_head_len (int) - максимально возможная длина последовательности
+    dropout (float, от 0 до 1) - вероятность обнулить значения тензора в слое dropout
+    '''
+    super().__init__()
+    self.multihead = MultiHeadAttention(num_heads, emb_size, head_size, max_seq_len, dropout)
+    self.feedforward = FeedForwardNetwork(emb_size, dropout)
+    self.b1 = nn.LayerNorm(emb_size)
+    self.b2 = nn.LayerNorm(emb_size)
+
+    self.emb_size = emb_size
+    self.head_size = head_size
+    self.max_seq_len = max_seq_len
+    self.num_heads = num_heads
+    self.dropout = dropout
+
+  def forward(self, x):
+    x += self.multihead.forward(x)
+    x = self.b1(x)
+    x += self.feedforward.forward(x)
+    x = self.b2(x)
+    return x

@@ -1,0 +1,21 @@
+class GetData(torch.utils.data.Dataset):
+  def __init__(self, data: list, seq_len: int, device = "cpu", *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.seq_len = seq_len
+    self.data = data
+    self.device = device
+
+  def __len__(self):
+    '''
+    Возвращает кол-во примеров в тренировочном датасете
+    '''
+    return len(self.data) - self.seq_len - 1
+
+  def __getitem__(self, idx):
+    x = torch.tensor(self.data[idx :idx+self.seq_len])
+    y = torch.tensor(self.data[idx+1 :idx+self.seq_len+1])
+    return (x, y)
+
+
+
+

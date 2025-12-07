@@ -1,0 +1,111 @@
+class BPE(nn.Module):
+  def __init__(self, vocab_size: int) -> None:
+    '''
+    vocab_size (тип int) - размерность словаря (позиционных токнеов)
+    dropout (float, от 0 до 1) - вероятность обнулить значения тензора в слое dropout. Дефолтное значение = 0.1
+    '''
+    super().__init__()
+    self.vocab_size = vocab_size
+    self.token_list = []
+    self.id2token = {}
+    self.token2id = {}
+
+  def tokenize(self, tokenizedText, pair):
+    ### Пройти по всем полученным токенам и объединить необходимые
+    aPL = len(tokenizedText)
+    cur = 0
+    tokenizedList = []
+    i = 0
+    while i < aPL-1:
+      frst = tokenizedText[i]
+      sec = tokenizedText[i+1]
+      token = frst+sec
+      if token == pair:
+        tokenizedList.append(token)
+        i += 2
+      else:
+        tokenizedList.append(frst)
+        i += 1
+
+    tokenizedList.append(tokenizedText[-1])
+    return tokenizedList
+
+  def pairing(self, textTokens, lastPair):
+    if lastPair != '':
+      token_list = self.tokenize(textTokens, lastPair)
+    else:
+      token_list = textTokens
+    pairs_list = [token_list[i] + token_list[i+1] for i in range(len(token_list)-1)]
+
+    pairs_dict = {}
+    max_val = 0
+    max_ind = ""
+    max_ind_pos = 0
+    for i, val in enumerate(pairs_list):
+      pairs_dict[val] = pairs_dict.get(val, [])
+      pairs_dict[val].append(i)
+      if (len(pairs_dict[val]) > max_val) or (len(pairs_dict[val]) == max_val and pairs_dict[val][0]<max_ind_pos[0]):
+        max_val = len(pairs_dict[val])
+        max_ind = val
+        max_ind_pos = pairs_dict[val]
+    return max_ind, token_list
+
+  def fit(self, text:str):
+    '''
+    text (тип string) - Корпус текста для обучения
+    '''
+    token_list = list(sorted(set(text)))
+    finalTokens = token_list
+    l1 = len(token_list)
+    tokenizedText = text
+    lastPair = ''
+    while len(token_list) < self.vocab_size:
+      pairing, tokenizedText_p = self.pairing(tokenizedText, lastPair)
+
+      tokenizedText = tokenizedText_p
+      lastPair = pairing
+      finalTokens.append(pairing)
+      if l1 == len(finalTokens):
+        raise Exception("NoNewData")
+      l1 = len(finalTokens)
+    self.token_list = token_list
+    self.id2token = {i:j for i, j in enumerate(token_list)}
+    self.token2id = {j:i for i, j in enumerate(token_list)}
+
+    return finalTokens
+
+
+  def encode(self, text):
+    tokens = []
+    i=0
+
+    while i< len(text):
+      candidates = []
+      for token in self.token_list:
+        if token.startswith(text[i]):
+          candidates.append(token)
+      last_candidate = candidates[0]
+      len_last_candidate = len(last_candidate)
+      for j in range(1, max(map(len, candidates))+1):
+        t = text[i:i+j]
+        l = len(t)
+        if t in candidates and l > len_last_candidate:
+          last_candidate = t
+          len_last_candidate = l
+      tokens.append(last_candidate)
+      i+= len(last_candidate)
+
+    return [self.token2id[token] for token in tokens]
+
+
+  def decode(self, token_ids: list[int]):
+    return "".join([self.id2token[_id] for _id in token_ids])
+  def id2token(self):
+    return {i:j for i,j in enumerate(list(map(str, self._all_token_list)))}
+  def token2id(self):
+    return {i:j for i,j in enumerate(list(map(str, self._all_token_list)))}
+
+  def save(self, filename):
+    return
+  def load(self, filename):
+    return

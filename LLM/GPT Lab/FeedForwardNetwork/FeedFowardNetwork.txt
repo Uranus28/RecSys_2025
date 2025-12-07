@@ -1,0 +1,24 @@
+class FeedForwardNetwork(nn.Module):
+  def __init__(self, emb_size: int, dropout = 0.1) -> None:
+    '''
+    emb_size (тип int) - размерность эмбедингов (позиционных токнеов)
+    dropout (float, от 0 до 1) - вероятность обнулить значения тензора в слое dropout. Дефолтное значение = 0.1
+    '''
+    super().__init__()
+    self.l1 = torch.nn.Linear(emb_size, emb_size * 4)
+    self.l2 = torch.nn.Linear(4 * emb_size, emb_size)
+    self.relu = nn.ReLU()
+    self.dr = nn.Dropout(p=dropout)
+
+    self.emb_size = emb_size
+    self.dropout = dropout
+
+  def forward(self, x):
+    x = self.l1(x)
+
+    x = self.relu(x)
+    x = self.l2(x)
+
+    x = self.dr(x)
+
+    return x

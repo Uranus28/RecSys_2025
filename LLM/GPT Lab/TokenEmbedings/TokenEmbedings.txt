@@ -1,0 +1,12 @@
+class TokenEmbedings(nn.Module):
+  def __init__(self, vocab_size, emb_size, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.vocab_size = vocab_size
+    self.emb_size = emb_size
+    self.matrix = torch.nn.Embedding(vocab_size, emb_size)
+
+  def forward(self, x):
+    '''
+    x - batch_size * seq_len
+    '''
+    return self.matrix(x)

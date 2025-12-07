@@ -1,0 +1,152 @@
+class GPT(nn.Module):
+  def __init__(self, vocab_size, max_seq_len, emb_size, num_heads, head_size, num_layers, dropout = 0.1, device:str = "cpu", *args, **kwargs):
+    print(vocab_size, emb_size)
+    super().__init__(*args, **kwargs)
+    self.token_embeddings = TokenEmbedings(vocab_size = vocab_size, emb_size = emb_size, device)
+    self.positional_embedings = PositionalEmbedings(max_seq_len = max_seq_len, emb_size = emb_size, device)
+    self.dropout_layer = nn.Dropout(dropout)
+    self.decoders = nn.Sequential(*[Decoder(num_heads, emb_size, head_size, max_seq_len, dropout ) for i in range(num_layers)])
+    self.linear = nn.Linear(emb_size, vocab_size)
+    self.max_seq_len = max_seq_len
+    self.vocab_size = vocab_size
+    self.emb_size = emb_size
+    self.num_heads = num_heads
+    self.head_size = head_size
+    self.num_layers = num_layers
+    self.dropout = dropout
+    self.device = device
+
+
+  def forward(self, x):
+    '''
+    Получает на вход последовательность x (тип int) размером batch_size x seq_len. Где
+      batch_size - n батчей
+      seq_len - Длина входящей последовательности
+    '''
+    emb_tokens = self.token_embeddings.forward(x)
+    emb_position = self.positional_embedings(x.shape[1])
+    embedding = emb_tokens + emb_position
+    x = self.dropout_layer(embedding)
+    x = self.decoders(x)
+    x = self.linear(x)
+    return x
+
+  def generate(self, x, max_new_tokens, do_sample, temperature = 0.1, top_k = None, top_p = None):
+    '''
+    '''
+    for i in range(max_new_tokens):
+      new_x = x[:, -self.max_seq_len:]
+      logits = self.forward(new_x)
+      logits_t = logits/temperature
+
+      if do_sample:
+        if top_k is not None:
+
+          last_logits = logits_t[:,-1,:]
+          sorted_logits, indices = torch.sort(last_logits, dim=1, descending=True)
+          vals = sorted_logits[:,top_k-1].unsqueeze(1)
+          last_logits[last_logits < vals] = -float("Inf")
+
+        elif top_p is not None:
+          last_logits = logits_t[:,-1:]
+          maxed = torch.softmax(last_logits, dim=1)
+          sorted_maxed, indices = torch.sort(maxed, dim=1, descending=True)
+          cumsum = torch.cumsum(sorted_maxed, dim=1)
+          max_ind = indices[:,0].unsqueeze(1)
+
+          reverse_indices = torch.argsort(indices, dim=1)
+          cumsum_returned = torch.gather(cumsum, dim=1,index=reverse_indices)
+
+          mask = cumsum_returned > top_p
+          mask.scatter_(dim=1, index=max_ind, value=False)
+          mask[max_ind] = False
+
+          last_logits[mask] = -float("inf")
+
+      maxed = torch.softmax(logits_t[:, -1, :], dim=1)
+      if do_sample:
+        arg_multi = torch.multinomial(maxed, 1)
+        torch.reshape(arg_multi, (maxed.shape[0],1))
+        x = torch.concat([x, arg_multi], dim=1)
+      else:
+        arg_max = torch.argmax(maxed, dim=1)
+        arg_max = torch.reshape(arg_max, (maxed.shape[0], 1))
+
+        x = torch.concat([x, arg_max], dim=1)
+    return x
+
+  def load(cls, path, device):
+    checkpoint = torch.load(path, map_location=device)
+    model = cls(
+        vocab_size=checkpoint['vocab_size'],
+        max_seq_len=checkpoint['max_seq_len'],
+        emb_size=checkpoint['emb_size'],
+        num_heads=checkpoint['num_heads'],
+        head_size=checkpoint['head_size'],
+        num_layers=checkpoint['num_layers'],
+    )
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    return
+  def save(self, path):
+    torch.save({
+        'model_state_dict': self.state_dict(),
+        'vocab_size': self.vocab_size,
+        'max_seq_len': self.max_seq_len,
+        'emb_size': self.emb_size,
+        'num_heads': self.num_heads,
+        'head_size': self.head_size,
+        'num_layers': self.num_layers,
+    })
+
+  def fit(self, train_loader, valid_loader, num_epoch, learning_rate):
+    '''
+    train_loader
+    valid_loader
+    num_epoch
+    learning_rate
+    '''
+    self.to(self.device)
+    self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+    loss_mas = []
+    val_loss_mas = []
+
+    for i in range(num_epoch):
+        self.train()
+        j=0
+        for inputs, targets in train_loader:
+          j+=1
+          print(f"{j}/{len(train_loader)} - {i}/{num_epoch}")
+          inputs = inputs.to(self.device)
+          targets = targets.to(self.device)
+          results = self.forward(inputs).reshape()
+          shapes = results.shape
+          results = torch.reshape(results, (shapes[0]*shapes[1],shapes[2]))
+          shapes = targets.shape
+          targets = torch.reshape(targets, (shapes[0]*shapes[1],))
+          targets = targets.to(torch.long)
+
+          self.loss = torch.nn.functional.cross_entropy(results, targets)
+          loss_mas.append(self.loss.item())
+          self.optimizer.zero_grad()
+          self.loss.backward()
+          self.optimizer.step()
+        # print(sum(loss_mas)/len(loss_mas))
+        self.eval()
+        with torch.no_grad():
+          for inputs, targets in valid_loader:
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+            results = self.forward(inputs)
+            shapes = results.shapes
+            results = torch.reshape(results, (shapes[0]*shapes[1],shapes[2]))
+            shapes = targets.shape
+            targets = torch.reshape(targets, (shapes[0]*shapes[1],))
+            targets = targets.to(torch.long)
+
+            self.val_loss = torch.nn.functional.cross_entropy(results, targets)
+            val_loss_mas.append(self.val_loss.item())
+        # print(sum(val_loss_mas)/len(val_loss_mas))
+        self.save("/content/localmodel.pth")
+
+    # return res

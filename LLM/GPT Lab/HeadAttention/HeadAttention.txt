@@ -1,0 +1,36 @@
+class HeadAttention(nn.Module):
+  def __init__(self, emb_size: int, head_size: int, max_seq_len: int) -> None:
+    '''
+    emb_size (тип int) - размерность эмбедингов (позиционных токнеов)
+    head_size (int) - размерность W-матриц (W_k, W_q, W_v)
+    max_head_len (int) - максимально возможная длина последовательности
+    '''
+    super().__init__()
+    self.emb_size = emb_size
+    self.head_size = head_size
+    self.max_seq_len = max_seq_len
+    self.w_k = torch.nn.Linear(emb_size, head_size, bias = False)
+    self.w_q = torch.nn.Linear(emb_size, head_size, bias = False)
+    self.w_v = torch.nn.Linear(emb_size, head_size, bias = False)
+
+    self.mask_attention = torch.tril(torch.ones(max_seq_len, max_seq_len))
+
+  def forward(self, x):
+    seq_len = x.shape[1]
+    self.key_matrix = self.w_k(x)
+    self.que_matrix = self.w_q(x)
+    self.val_matrix = self.w_v(x)
+
+    self.att_matrix = torch.matmul(self.que_matrix, self.key_matrix.transpose(1,2))
+    # Должен быть float
+    self.att_matrix /= self.head_size**0.5
+
+    self.mask_attention = self.mask_attention.to(self.att_matrix.device)
+    self.sub_mask_matrix = self.mask_attention[:seq_len, :seq_len]
+    self.att_matrix = torch.where(self.sub_mask_matrix == 1, self.att_matrix,
+                                  torch.tensor(float('-inf'), device=self.att_matrix.device, dtype=self.att_matrix.dtype))
+
+    self.att_matrix = F.softmax(self.att_matrix, dim=2)
+    self.result_tensor = torch.matmul(self.att_matrix, self.val_matrix)
+
+    return self.result_tensor
