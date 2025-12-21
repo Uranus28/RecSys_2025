@@ -59,7 +59,6 @@ class GPT(nn.Module):
 
           mask = cumsum_returned > top_p
           mask.scatter_(dim=1, index=max_ind, value=False)
-          mask[max_ind] = False
 
           last_logits[mask] = -float("inf")
 
