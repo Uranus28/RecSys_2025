@@ -2,8 +2,8 @@ class GPT(nn.Module):
   def __init__(self, vocab_size, max_seq_len, emb_size, num_heads, head_size, num_layers, dropout = 0.1, device:str = "cpu", *args, **kwargs):
     print(vocab_size, emb_size)
     super().__init__(*args, **kwargs)
-    self.token_embeddings = TokenEmbedings(vocab_size = vocab_size, emb_size = emb_size, device)
-    self.positional_embedings = PositionalEmbedings(max_seq_len = max_seq_len, emb_size = emb_size, device)
+    self.token_embeddings = TokenEmbedings(vocab_size = vocab_size, emb_size = emb_size, device=device)
+    self.positional_embedings = PositionalEmbedings(max_seq_len = max_seq_len, emb_size = emb_size, device=device)
     self.dropout_layer = nn.Dropout(dropout)
     self.decoders = nn.Sequential(*[Decoder(num_heads, emb_size, head_size, max_seq_len, dropout ) for i in range(num_layers)])
     self.linear = nn.Linear(emb_size, vocab_size)
@@ -115,15 +115,16 @@ class GPT(nn.Module):
         j=0
         for inputs, targets in train_loader:
           j+=1
-          print(f"{j}/{len(train_loader)} - {i}/{num_epoch}")
+          # print(f"{j}/{len(train_loader)} - {i}/{num_epoch}")
           inputs = inputs.to(self.device)
           targets = targets.to(self.device)
-          results = self.forward(inputs).reshape()
+          results = self.forward(inputs)
           shapes = results.shape
           results = torch.reshape(results, (shapes[0]*shapes[1],shapes[2]))
           shapes = targets.shape
           targets = torch.reshape(targets, (shapes[0]*shapes[1],))
           targets = targets.to(torch.long)
+          results = results.to(torch.long)
 
           self.loss = torch.nn.functional.cross_entropy(results, targets)
           loss_mas.append(self.loss.item())
@@ -141,7 +142,6 @@ class GPT(nn.Module):
             results = torch.reshape(results, (shapes[0]*shapes[1],shapes[2]))
             shapes = targets.shape
             targets = torch.reshape(targets, (shapes[0]*shapes[1],))
-            targets = targets.to(torch.long)
 
             self.val_loss = torch.nn.functional.cross_entropy(results, targets)
             val_loss_mas.append(self.val_loss.item())
