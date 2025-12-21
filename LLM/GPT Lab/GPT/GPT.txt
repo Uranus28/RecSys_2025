@@ -47,7 +47,7 @@ class GPT(nn.Module):
           vals = sorted_logits[:,top_k-1].unsqueeze(1)
           last_logits[last_logits < vals] = -float("Inf")
 
-        elif top_p is not None:
+        if top_p is not None:
           last_logits = logits_t[:,-1:]
           maxed = torch.softmax(last_logits, dim=1)
           sorted_maxed, indices = torch.sort(maxed, dim=1, descending=True)
