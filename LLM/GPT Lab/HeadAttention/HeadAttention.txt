@@ -27,10 +27,12 @@ class HeadAttention(nn.Module):
 
     self.mask_attention = self.mask_attention.to(self.att_matrix.device)
     self.sub_mask_matrix = self.mask_attention[:seq_len, :seq_len]
-    self.att_matrix = torch.where(self.sub_mask_matrix == 1, self.att_matrix,
-                                  torch.tensor(float('-inf'), device=self.att_matrix.device, dtype=self.att_matrix.dtype))
+    
+    tens = torch.tensor(float('-inf'), device=self.att_matrix.device, dtype=self.att_matrix.dtype)
+    self.att_matrix = torch.where(self.sub_mask_matrix == 1, self.att_matrix, tens)
 
-    self.att_matrix = F.softmax(self.att_matrix, dim=2)
+    self.att_matrix = torch.where(self.sub_mask_matrix.bool(), self.att_matrix, tens)
+    self.att_matrix = torch.softmax(self.att_matrix, dim=2)
     self.result_tensor = torch.matmul(self.att_matrix, self.val_matrix)
 
     return self.result_tensor
