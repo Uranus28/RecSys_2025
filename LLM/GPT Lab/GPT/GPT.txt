@@ -31,7 +31,7 @@ class GPT(nn.Module):
     x = self.linear(x)
     return x
 
-  def generate(self, x, max_new_tokens, do_sample, temperature = 0.1, top_k = None, top_p = None):
+  def generate(self, x, max_new_tokens, do_sample=False, temperature = 1.0, top_k = None, top_p = None):
     '''
     '''
     for i in range(max_new_tokens):
@@ -41,7 +41,6 @@ class GPT(nn.Module):
 
       if do_sample:
         if top_k is not None:
-
           last_logits = logits_t[:,-1,:]
           sorted_logits, indices = torch.sort(last_logits, dim=1, descending=True)
           vals = sorted_logits[:,top_k-1].unsqueeze(1)
@@ -51,27 +50,25 @@ class GPT(nn.Module):
           last_logits = logits_t[:,-1:]
           maxed = torch.softmax(last_logits, dim=1)
           sorted_maxed, indices = torch.sort(maxed, dim=1, descending=True)
-          cumsum = torch.cumsum(sorted_maxed, dim=1)
-          max_ind = indices[:,0].unsqueeze(1)
-
+          max_ind = indices[:,0].unsqueeze(1)   
           reverse_indices = torch.argsort(indices, dim=1)
+          cumsum = torch.cumsum(sorted_maxed, dim=1)
           cumsum_returned = torch.gather(cumsum, dim=1,index=reverse_indices)
 
           mask = cumsum_returned > top_p
           mask.scatter_(dim=1, index=max_ind, value=False)
-
           last_logits[mask] = -float("inf")
 
       maxed = torch.softmax(logits_t[:, -1, :], dim=1)
       if do_sample:
         arg_multi = torch.multinomial(maxed, 1)
         torch.reshape(arg_multi, (maxed.shape[0],1))
-        x = torch.concat([x, arg_multi], dim=1)
+        x = torch.cat([x, arg_multi], dim=1)
       else:
         arg_max = torch.argmax(maxed, dim=1)
         arg_max = torch.reshape(arg_max, (maxed.shape[0], 1))
 
-        x = torch.concat([x, arg_max], dim=1)
+        x = torch.cat([x, arg_max], dim=1)
     return x
 
   def load(cls, path, device):
